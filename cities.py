@@ -1,17 +1,34 @@
 from fastapi import HTTPException
 import httpx
 from datetime import datetime
+import sqlite3
+from coordinates import get_weather_now
+from db import database_implementation
 
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
 
+# 2.	Метод принимает название города и его координаты и добавляет в список городов для которых отслеживается
+#       прогноз погоды - сервер должен хранить прогноз погоды для указанных городов на текущий день и
+#       обновлять его каждые 15 минут.
 
-async def get_weather_now(latitude: float, longitude: float):
+
+async def get_weather_cities_now(city):
+
+    db = sqlite3.connect('cities.db')
+    cursor = db.cursor()
+
+    if city ==
+
+    latitude = float(input("Введите широту: "))
+    longitude = float(input("Введите долготу: "))
+    weather = await get_weather_now(latitude, longitude)
+    print(weather)
+
     params = {
         "latitude": latitude,
         "longitude": longitude,
         "current_weather": True,
-        "hourly": "pressure_msl",
-        "timezone": "Europe/Moscow"
+        "hourly": "pressure_msl"
     }
 
     async with httpx.AsyncClient() as client:
@@ -27,7 +44,7 @@ async def get_weather_now(latitude: float, longitude: float):
         pressure_list = hourly_data.get("pressure_msl", [])
 
         now = datetime.now()
-        current_hour = now.hour
+        current_hour = now.hour - 3
 
         current_pressure = pressure_list[current_hour] if pressure_list else None
 
