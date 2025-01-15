@@ -1,32 +1,30 @@
 from fastapi import FastAPI, HTTPException
-from fastapi import BackgroundTasks
 from coordinates import get_weather_now
 import aiosqlite
-from cities import add_city, get_weather_city, scheduler, fetch_column_data
+from cities import add_city, get_weather_city, scheduler, fetch_column_data, generator
 from db import database_implementation
 from apscheduler.triggers.interval import IntervalTrigger
 from contextlib import asynccontextmanager
 
-scheduler.start(print(11))
+from datetime import datetime
+import time
+
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print(12)
-    async for city in fetch_column_data():
-        print(13)
-        scheduler.add_job(await get_weather_city(city), IntervalTrigger(minutes=1))
-        print(14)
-        scheduler.start()
-        print(15)
-    print("Планировщик запущен.")
+    await database_implementation()
+    scheduler.add_job(generator, IntervalTrigger(minutes=1))
+
+    scheduler.start()
+    print(f"Планировщик запущен {datetime.fromtimestamp(time.time())}.")
 
     yield
 
     await scheduler.shutdown()
     print("Планировщик остановлен.")
 
-# Создание приложения
+
 app = FastAPI(lifespan=lifespan)
 
 
@@ -66,7 +64,6 @@ async def weather_now():
 
 @app.get('/cities')
 async def add_cities():
-    await database_implementation()
     city = input("Введите название города: ")
     await add_city(city)
 

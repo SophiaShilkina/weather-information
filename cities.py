@@ -23,6 +23,7 @@ async def fetch_column_data():
 
             if not rows:
                 print("Города не найдены.")
+                return
 
             for row in rows:
                 print(f"Информация обновлена для города {row[0]}.")
@@ -57,6 +58,11 @@ async def get_weather_city(city: str):
             await db.execute("UPDATE cities SET last_updated = ? WHERE city = ?",
                              (datetime.fromtimestamp(time.time()), city))
             await db.commit()
+
+
+async def generator():
+    async for city in fetch_column_data():
+        await get_weather_city(city)
 
 
 async def add_city(city: str):
