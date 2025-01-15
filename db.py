@@ -1,18 +1,18 @@
-import sqlite3
+import aiosqlite
 
 
 async def database_implementation():
-    db = sqlite3.connect('cities.db')
-    cursor = db.cursor()
+    async with aiosqlite.connect('cities.db') as db:
 
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS Cities (
-    id INTEGER PRIMARY KEY,
-    city TEXT NOT NULL,
-    latitude FLOAT,
-    longitude FLOAT
-    )
-    ''')
+        await db.execute('''
+        CREATE TABLE IF NOT EXISTS Cities (
+        id INTEGER PRIMARY KEY,
+        city TEXT UNIQUE NOT NULL,
+        latitude FLOAT,
+        longitude FLOAT,
+        weather TEXT,
+        last_updated TIMESTAMP
+        )
+        ''')
 
-    db.commit()
-    db.close()
+        await db.commit()

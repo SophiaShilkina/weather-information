@@ -4,6 +4,9 @@ from datetime import datetime
 
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
 
+# 1.    Метод принимает координаты и возвращает данные о температуре, скорости ветра и атмосферном
+#       давлении на момент запроса.
+
 
 async def get_weather_now(latitude: float, longitude: float):
     params = {
@@ -19,7 +22,7 @@ async def get_weather_now(latitude: float, longitude: float):
         print(response)
 
         if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail="Weather data not available")
+            raise HTTPException(status_code=response.status_code, detail="Данные о погоде недоступны.")
 
         data = response.json()
 
@@ -36,9 +39,10 @@ async def get_weather_now(latitude: float, longitude: float):
         temperature = current_weather.get("temperature")
         wind_speed = current_weather.get("windspeed")
 
-        return {
-            "temperature": temperature,
-            "wind_speed": wind_speed,
-            "pressure": current_pressure
-        }
+        print(f"Температура: {temperature}\n"
+              f"Скорость ветра: {wind_speed}\n"
+              f"Атм. давление: {current_pressure}")
 
+    return {"Температура": temperature,
+            "Скорость ветра": wind_speed,
+            "Атм. давление": current_pressure}

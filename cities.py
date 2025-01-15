@@ -1,9 +1,10 @@
 from fastapi import HTTPException
 import httpx
 from datetime import datetime
-import sqlite3
-from coordinates import get_weather_now
-from db import database_implementation
+import aiosqlite
+import time
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
 
@@ -12,23 +13,34 @@ BASE_URL = "https://api.open-meteo.com/v1/forecast"
 #       обновлять его каждые 15 минут.
 
 
-async def get_weather_cities_now(city):
+scheduler = AsyncIOScheduler()
 
-    db = sqlite3.connect('cities.db')
-    cursor = db.cursor()
 
-    if city ==
+async def fetch_column_data():
+    async with aiosqlite.connect('cities.db') as db:
+        async with db.execute("SELECT city FROM cities") as cursor:
+            rows = await cursor.fetchall()
 
-    latitude = float(input("Введите широту: "))
-    longitude = float(input("Введите долготу: "))
-    weather = await get_weather_now(latitude, longitude)
-    print(weather)
+            if not rows:
+                print("Города не найдены.")
+
+            for row in rows:
+                print(f"Информация обновлена для города {row[0]}.")
+                yield row[0]
+
+
+async def get_weather_city(city: str):
+    async with aiosqlite.connect('cities.db') as db:
+        async with db.execute("SELECT * FROM cities WHERE city = ?", (city,)) as cursor:
+            row = await cursor.fetchone()
+            latitude = row[2]
+            longitude = row[3]
 
     params = {
         "latitude": latitude,
         "longitude": longitude,
         "current_weather": True,
-        "hourly": "pressure_msl"
+        "timezone": "Europe/Moscow"
     }
 
     async with httpx.AsyncClient() as client:
@@ -36,26 +48,28 @@ async def get_weather_cities_now(city):
         print(response)
 
         if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail="Weather data not available")
+            raise HTTPException(status_code=response.status_code, detail="Данные о погоде недоступны.")
 
         data = response.json()
 
-        hourly_data = data.get("hourly", {})
-        pressure_list = hourly_data.get("pressure_msl", [])
+        async with aiosqlite.connect('cities.db') as db:
+            await db.execute("UPDATE cities SET weather = ? WHERE city = ?", (str(data), city))
+            await db.execute("UPDATE cities SET last_updated = ? WHERE city = ?",
+                             (datetime.fromtimestamp(time.time()), city))
+            await db.commit()
 
-        now = datetime.now()
-        current_hour = now.hour - 3
 
-        current_pressure = pressure_list[current_hour] if pressure_list else None
+async def add_city(city: str):
+    async with aiosqlite.connect('cities.db') as db:
+        try:
+            latitude = float(input("Введите широту: "))
+            longitude = float(input("Введите долготу: "))
+            await db.execute('''
+                    INSERT INTO cities (city, latitude, longitude, weather, last_updated) VALUES (?, ?, ?, ?, ?)
+                    ''', (city, latitude, longitude, '-', datetime.fromtimestamp(time.time()),))
+            await db.commit()
+            await get_weather_city(city)
+            print(f"Город {city} добавлен в базу данных.")
 
-        current_weather = data.get("current_weather", {})
-
-        temperature = current_weather.get("temperature")
-        wind_speed = current_weather.get("windspeed")
-
-        return {
-            "temperature": temperature,
-            "wind_speed": wind_speed,
-            "pressure": current_pressure
-        }
-
+        except aiosqlite.IntegrityError:
+            print(f"Город {city} уже существует в базе данных.")
