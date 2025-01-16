@@ -37,10 +37,17 @@ async def get_weather_city(city: str):
             latitude = row[2]
             longitude = row[3]
 
+    hourly_params = [
+        "temperature_2m",
+        "relative_humidity_2m",
+        "wind_speed_10m",
+        "precipitation"
+        ]
+
     params = {
         "latitude": latitude,
         "longitude": longitude,
-        "current_weather": True,
+        "hourly": hourly_params,
         "timezone": "Europe/Moscow"
     }
 
@@ -51,10 +58,16 @@ async def get_weather_city(city: str):
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail="Данные о погоде недоступны.")
 
+        hourly_params.insert(0, "time")
+
         data = response.json()
 
+        daily_data = {}
+        for param in hourly_params:
+            daily_data[param] = data['hourly'][param][:24] if 'hourly' in data and param in data['hourly'] else []
+
         async with aiosqlite.connect('cities.db') as db:
-            await db.execute("UPDATE cities SET weather = ? WHERE city = ?", (str(data), city))
+            await db.execute("UPDATE cities SET weather = ? WHERE city = ?", (str(daily_data), city))
             await db.execute("UPDATE cities SET last_updated = ? WHERE city = ?",
                              (datetime.fromtimestamp(time.time()), city))
             await db.commit()
@@ -65,11 +78,9 @@ async def generator():
         await get_weather_city(city)
 
 
-async def add_city(city: str):
+async def add_city(city: str, latitude: float, longitude: float):
     async with aiosqlite.connect('cities.db') as db:
         try:
-            latitude = float(input("Введите широту: "))
-            longitude = float(input("Введите долготу: "))
             await db.execute('''
                     INSERT INTO cities (city, latitude, longitude, weather, last_updated) VALUES (?, ?, ?, ?, ?)
                     ''', (city, latitude, longitude, '-', datetime.fromtimestamp(time.time()),))

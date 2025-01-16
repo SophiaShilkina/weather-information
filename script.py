@@ -1,27 +1,28 @@
 from fastapi import FastAPI, HTTPException
 from coordinates import get_weather_now
 import aiosqlite
-from cities import add_city, get_weather_city, scheduler, fetch_column_data, generator
+from cities import add_city, scheduler, generator
 from db import database_implementation
 from apscheduler.triggers.interval import IntervalTrigger
 from contextlib import asynccontextmanager
-
 from datetime import datetime
 import time
-
+from classes import CityName, WeatherResponse, WeatherParams
+from currentweather import get_weather_by_hour
+from typing import List
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await database_implementation()
-    scheduler.add_job(generator, IntervalTrigger(minutes=1))
+    scheduler.add_job(generator, IntervalTrigger(minutes=15))
 
     scheduler.start()
     print(f"Планировщик запущен {datetime.fromtimestamp(time.time())}.")
 
     yield
 
-    await scheduler.shutdown()
+    scheduler.shutdown()
     print("Планировщик остановлен.")
 
 
@@ -31,13 +32,17 @@ app = FastAPI(lifespan=lifespan)
 @app.get('/')
 async def home_page():
     print('Доступные URI:\n'
-          'http://127.0.0.1:8000 - начальная страница\n'
-          'http://127.0.0.1:8000/coordinates - метод принимает координаты и возвращает данные о температуре, '
+          '"http://127.0.0.1:8000" - начальная страница\n'
+          '"http://127.0.0.1:8000/coordinates" - метод принимает координаты и возвращает данные о температуре, '
           'скорости ветра и атмосферном давлении на момент запроса\n'
-          'http://127.0.0.1:8000/cities - метод принимает название города и его координаты и добавляет в список '
+          '"http://127.0.0.1:8000/cities" - метод принимает название города и его координаты и добавляет в список '
           'городов для которых отслеживается прогноз погоды\n'
-          'http://127.0.0.1:8000/cities/{city} - просмотр актуальной погоды для городов для которых отслеживается '
-          'прогноз погоды')
+          '"http://127.0.0.1:8080/forecast" - метод возвращает список городов, для которых доступен прогноз погоды\n'
+          'Методы:\n'
+          'PowerShell: curl.exe -X GET http://127.0.0.1:8000"\n'
+          'cmd.exe: curl -X GET "http://127.0.0.1:8000"\n'
+          'PowerShell: curl.exe -X POST "URI" -H "Content-Type: application/json" -d \'{json}\'\n'
+          'cmd.exe: curl -X POST "URI" -H "Content-Type: application/json" -d \'{json}\'\n')
     return {
         'Доступные URI:': [
             'http://127.0.0.1:8000 - начальная страница',
@@ -45,47 +50,55 @@ async def home_page():
             'скорости ветра и атмосферном давлении на момент запроса',
             'http://127.0.0.1:8000/cities - метод принимает название города и его координаты и добавляет в список '
             'городов для которых отслеживается прогноз погоды',
-            'http://127.0.0.1:8000/cities/{city} - просмотр актуальной погоды для городов для которых '
-            'отслеживается прогноз погоды'
+            'http://127.0.0.1:8080/forecast - метод возвращает список городов, для которых доступен прогноз погоды'
+        ],
+        'Команды:': [
+            'PowerShell: curl.exe -X GET/POST "UPI"',
+            'cmd.exe: curl -X GET/POST "URI"',
+            'PowerShell: curl.exe -X POST "URI" -H "Content-Type: application/json" -d \'{json}\'',
+            'cmd.exe: curl -X POST "URI" -H "Content-Type: application/json" -d \'{json}\''
         ]
     }
 
 
 @app.get('/coordinates')
-async def weather_now():
+async def weather_now(latitude: float, longitude: float):
     try:
-        latitude = float(input("Введите широту: "))
-        longitude = float(input("Введите долготу: "))
         return await get_weather_now(latitude, longitude)
 
     except HTTPException as e:
         raise e
 
 
-@app.get('/cities')
-async def add_cities():
-    city = input("Введите название города: ")
-    await add_city(city)
+@app.post('/cities')
+async def add_cities(cit: CityName):
+    try:
+        city = cit.city
+        latitude = cit.latitude
+        longitude = cit.longitude
+        await add_city(city, latitude, longitude)
+
+    except HTTPException as e:
+        raise e
 
 
-@app.get("/cities/{city}")
-async def get_weather(city: str):
-    city = input("Введите название города: ")
+@app.get('/forecast')
+async def cities_with_forecast():
     async with aiosqlite.connect("cities.db") as db:
-        async with db.execute("SELECT * FROM Cities WHERE city = ?", (city,)) as cursor:
-            try:
-                data = await cursor.fetchone()
-                print(f"Город: {data[1]}\n"
-                      f"Широта: {data[2]}\n"
-                      f"Долгота: {data[3]}")
+        async with db.execute("SELECT city FROM cities") as cursor:
+            city = await cursor.fetchall()
 
-            except TypeError:
-                print("Город не найден в базе данных.")
-                return {f"{TypeError}. Город не найден в базе данных."}
+            if not city:
+                print("Города не найдены.")
+                return
 
-            except aiosqlite.Error as e:
-                print("Ошибка базы данных.")
-                return {"error": f"Ошибка базы данных: {e}"}
+            print(f"Города: {city}")
+            return {'Города': city}
+
+
+@app.get('/currentweather', response_model=WeatherResponse)
+async def read_weather(city: str, time_w: str, params: List[WeatherParams]):
+    return await get_weather_by_hour(city, time_w, params)
 
 
 PORT = 8080

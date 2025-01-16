@@ -43,6 +43,8 @@ async def get_weather_now(latitude: float, longitude: float):
               f"Скорость ветра: {wind_speed}\n"
               f"Атм. давление: {current_pressure}")
 
-    return {"Температура": temperature,
-            "Скорость ветра": wind_speed,
-            "Атм. давление": current_pressure}
+    return {
+        "Temperature": temperature,
+        "Wind speed": wind_speed,
+        "Pressure": current_pressure
+    }
