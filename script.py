@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from coordinates import get_weather_now
 import aiosqlite
 from cities import add_city, scheduler, generator
@@ -7,9 +7,9 @@ from apscheduler.triggers.interval import IntervalTrigger
 from contextlib import asynccontextmanager
 from datetime import datetime
 import time
-from classes import CityName, WeatherResponse, WeatherParams
+from classes import CityName, WeatherResponse
 from currentweather import get_weather_by_hour
-from typing import List
+from typing import Optional
 
 
 @asynccontextmanager
@@ -97,8 +97,16 @@ async def cities_with_forecast():
 
 
 @app.get('/currentweather', response_model=WeatherResponse)
-async def read_weather(city: str, time_w: str, params: List[WeatherParams]):
-    return await get_weather_by_hour(city, time_w, params)
+async def read_weather(city: str, time_w: str,
+                       temperature: Optional[bool] = Query(None),
+                       humidity: Optional[bool] = Query(None),
+                       wind_speed: Optional[bool] = Query(None),
+                       precipitation: Optional[bool] = Query(None)):
+    return await get_weather_by_hour(city, time_w,
+                                     temperature,
+                                     humidity,
+                                     wind_speed,
+                                     precipitation)
 
 
 PORT = 8080

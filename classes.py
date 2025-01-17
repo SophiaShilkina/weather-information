@@ -1,6 +1,5 @@
 from pydantic import BaseModel, field_validator
-from enum import Enum
-from typing import Dict, Optional
+from typing import Optional
 import re
 from fastapi import Query
 
@@ -11,22 +10,15 @@ class CityName(BaseModel):
     longitude: float
 
 
-class WeatherParams(str, Enum):
-    temperature: bool = Query(False),
-    humidity: bool = Query(False),
-    wind_speed: bool = Query(False),
-    precipitation: bool = Query(False)
-
-
 class WeatherResponse(BaseModel):
     city: str
-    time: str
-    temperature: bool = Query(False),
-    humidity: bool = Query(False),
-    wind_speed: bool = Query(False),
-    precipitation: bool = Query(False)
+    time_w: str
+    temperature: Optional[bool] = Query(None)
+    humidity: Optional[bool] = Query(None)
+    wind_speed: Optional[bool] = Query(None)
+    precipitation: Optional[bool] = Query(None)
 
-    @field_validator("time")
+    @field_validator("time_w")
     def ensure_time_format(cls, v):
 
         if not re.match(r'^\d{2}:\d{2}$', v):
