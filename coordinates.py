@@ -9,6 +9,7 @@ BASE_URL = "https://api.open-meteo.com/v1/forecast"
 
 
 async def get_weather_now(latitude: float, longitude: float):
+
     params = {
         "latitude": latitude,
         "longitude": longitude,
@@ -38,10 +39,6 @@ async def get_weather_now(latitude: float, longitude: float):
 
         temperature = current_weather.get("temperature")
         wind_speed = current_weather.get("windspeed")
-
-        print(f"Температура: {temperature}\n"
-              f"Скорость ветра: {wind_speed}\n"
-              f"Атм. давление: {current_pressure}")
 
     return {
         "Temperature": temperature,

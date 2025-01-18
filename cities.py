@@ -3,6 +3,7 @@ import httpx
 from datetime import datetime
 import aiosqlite
 import time
+import json
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 
@@ -58,16 +59,16 @@ async def get_weather_city(city: str):
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail="Данные о погоде недоступны.")
 
-        hourly_params.insert(0, "time")
-
         data = response.json()
 
         daily_data = {}
         for param in hourly_params:
             daily_data[param] = data['hourly'][param][:24] if 'hourly' in data and param in data['hourly'] else []
 
+        daily_data = json.dumps(daily_data)
+
         async with aiosqlite.connect('cities.db') as db:
-            await db.execute("UPDATE cities SET weather = ? WHERE city = ?", (str(daily_data), city))
+            await db.execute("UPDATE cities SET weather = ? WHERE city = ?", (daily_data, city))
             await db.execute("UPDATE cities SET last_updated = ? WHERE city = ?",
                              (datetime.fromtimestamp(time.time()), city))
             await db.commit()
@@ -86,7 +87,16 @@ async def add_city(city: str, latitude: float, longitude: float):
                     ''', (city, latitude, longitude, '-', datetime.fromtimestamp(time.time()),))
             await db.commit()
             await get_weather_city(city)
+
             print(f"Город {city} добавлен в базу данных.")
+            return {
+                "city": city,
+                "add": f"{city} added to the database."
+            }
 
         except aiosqlite.IntegrityError:
             print(f"Город {city} уже существует в базе данных.")
+            return {
+                "city": city,
+                "add": f"The {city} already exists in the database."
+            }

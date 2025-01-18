@@ -7,7 +7,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from contextlib import asynccontextmanager
 from datetime import datetime
 import time
-from classes import CityName, WeatherResponse
+from classes import CityName, Coordinates
 from currentweather import get_weather_by_hour
 from typing import Optional
 
@@ -31,39 +31,16 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get('/')
 async def home_page():
-    print('Доступные URI:\n'
-          '"http://127.0.0.1:8000" - начальная страница\n'
-          '"http://127.0.0.1:8000/coordinates" - метод принимает координаты и возвращает данные о температуре, '
-          'скорости ветра и атмосферном давлении на момент запроса\n'
-          '"http://127.0.0.1:8000/cities" - метод принимает название города и его координаты и добавляет в список '
-          'городов для которых отслеживается прогноз погоды\n'
-          '"http://127.0.0.1:8080/forecast" - метод возвращает список городов, для которых доступен прогноз погоды\n'
-          'Методы:\n'
-          'PowerShell: curl.exe -X GET http://127.0.0.1:8000"\n'
-          'cmd.exe: curl -X GET "http://127.0.0.1:8000"\n'
-          'PowerShell: curl.exe -X POST "URI" -H "Content-Type: application/json" -d \'{json}\'\n'
-          'cmd.exe: curl -X POST "URI" -H "Content-Type: application/json" -d \'{json}\'\n')
     return {
-        'Доступные URI:': [
-            'http://127.0.0.1:8000 - начальная страница',
-            'http://127.0.0.1:8000/coordinates - метод принимает координаты и возвращает данные о температуре, '
-            'скорости ветра и атмосферном давлении на момент запроса',
-            'http://127.0.0.1:8000/cities - метод принимает название города и его координаты и добавляет в список '
-            'городов для которых отслеживается прогноз погоды',
-            'http://127.0.0.1:8080/forecast - метод возвращает список городов, для которых доступен прогноз погоды'
-        ],
-        'Команды:': [
-            'PowerShell: curl.exe -X GET/POST "UPI"',
-            'cmd.exe: curl -X GET/POST "URI"',
-            'PowerShell: curl.exe -X POST "URI" -H "Content-Type: application/json" -d \'{json}\'',
-            'cmd.exe: curl -X POST "URI" -H "Content-Type: application/json" -d \'{json}\''
-        ]
+        "home_page": "home_page"
     }
 
 
 @app.get('/coordinates')
-async def weather_now(latitude: float, longitude: float):
+async def weather_now(coors: Coordinates):
     try:
+        latitude = coors.latitude
+        longitude = coors.longitude
         return await get_weather_now(latitude, longitude)
 
     except HTTPException as e:
@@ -76,7 +53,7 @@ async def add_cities(cit: CityName):
         city = cit.city
         latitude = cit.latitude
         longitude = cit.longitude
-        await add_city(city, latitude, longitude)
+        return await add_city(city, latitude, longitude)
 
     except HTTPException as e:
         raise e
@@ -90,13 +67,17 @@ async def cities_with_forecast():
 
             if not city:
                 print("Города не найдены.")
-                return
+                return {
+                    "Error": "Cities not found."
+                }
 
             print(f"Города: {city}")
-            return {'Города': city}
+            return {
+                'Cities': city
+            }
 
 
-@app.get('/currentweather', response_model=WeatherResponse)
+@app.get('/currentweather')
 async def read_weather(city: str, time_w: str,
                        temperature: Optional[bool] = Query(None),
                        humidity: Optional[bool] = Query(None),
@@ -109,7 +90,7 @@ async def read_weather(city: str, time_w: str,
                                      precipitation)
 
 
-PORT = 8080
+PORT = 8000
 
 if __name__ == '__main__':
     import uvicorn

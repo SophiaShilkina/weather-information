@@ -1,7 +1,6 @@
 from typing import Optional
 from fastapi import Query
 import aiosqlite
-from classes import WeatherResponse
 import json
 
 
@@ -22,7 +21,9 @@ async def get_weather_by_hour(city: str, time_w: str,
             weather_data = await cursor.fetchone()
 
             if weather_data is None:
-                return WeatherResponse(city=city, time_w=time_w)
+                return {
+                    "Error": "City not found."
+                }
 
             if weather_data:
                 weather_json_string = weather_data[0]
@@ -32,17 +33,21 @@ async def get_weather_by_hour(city: str, time_w: str,
 
             hour = time_w.split(':')[0]
 
-            response = WeatherResponse(city=city, time_w=time_w,
-                                       temperature=temperature,
-                                       humidity=humidity,
-                                       wind_speed=wind_speed,
-                                       precipitation=precipitation)
-            if temperature == True:
-                response.temperature = weather_json["temperature_2m"][int(hour)-1]
-            elif humidity == True:
-                response.humidity = weather_json["relative_humidity_2m"][int(hour)-1]
-            elif wind_speed == True:
-                response.wind_speed = weather_json["wind_speed_10m"][int(hour)-1]
-            elif precipitation == True:
-                response.precipitation = weather_json["precipitation"][int(hour)-1]
+            response = {}
+
+            try:
+                if temperature:
+                    response["temperature"] = weather_json["temperature_2m"][int(hour)-1]
+                if humidity:
+                    response["humidity"] = weather_json["relative_humidity_2m"][int(hour)-1]
+                if wind_speed:
+                    response["wind_speed"] = weather_json["wind_speed_10m"][int(hour)-1]
+                if precipitation:
+                    response["precipitation"] = weather_json["precipitation"][int(hour)-1]
+                if not response:
+                    response["None"] = "Select the weather settings."
+            except (KeyError, IndexError) as e:
+                print(f"Ошибка получения погоды: {e}.")
+                response["Error"] = "Unable to retrieve the requested data."
+
             return response
