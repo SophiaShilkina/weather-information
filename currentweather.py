@@ -11,13 +11,13 @@ BASE_URL = "https://api.open-meteo.com/v1/forecast"
 #       скорость ветра, осадки.
 
 
-async def get_weather_by_hour(city: str, time_w: str,
+async def get_weather_by_hour(usid: int, city: str, time_w: str,
                               temperature: Optional[bool] = Query(None),
                               humidity: Optional[bool] = Query(None),
                               wind_speed: Optional[bool] = Query(None),
                               precipitation: Optional[bool] = Query(None)):
     async with aiosqlite.connect("cities.db") as db:
-        async with db.execute("SELECT weather FROM cities WHERE city = ?", (city,)) as cursor:
+        async with db.execute("SELECT weather FROM cities WHERE id_user = ? AND city = ?", (usid, city,)) as cursor:
             weather_data = await cursor.fetchone()
 
             if weather_data is None:

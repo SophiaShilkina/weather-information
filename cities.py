@@ -35,8 +35,8 @@ async def get_weather_city(city: str):
     async with aiosqlite.connect('cities.db') as db:
         async with db.execute("SELECT * FROM cities WHERE city = ?", (city,)) as cursor:
             row = await cursor.fetchone()
-            latitude = row[2]
-            longitude = row[3]
+            latitude = row[3]
+            longitude = row[4]
 
     hourly_params = [
         "temperature_2m",
@@ -79,24 +79,42 @@ async def generator():
         await get_weather_city(city)
 
 
-async def add_city(city: str, latitude: float, longitude: float):
+async def add_city(usid: int, city: str, latitude: float, longitude: float):
+    async with aiosqlite.connect('users.db') as db:
+        async with db.execute("SELECT id FROM users WHERE id = ?", (usid,)) as cursor:
+            have_id = await cursor.fetchone()
+
+            if have_id is None:
+                print(f"Незарегистрированный пользователь.")
+                return {
+                    "add": "Unregistered user."
+                }
+
     async with aiosqlite.connect('cities.db') as db:
         try:
+            async with db.execute("SELECT COUNT(*) FROM cities WHERE id_user = ? AND city = ?",
+                                  (usid, city)) as cursor:
+                count = await cursor.fetchone()
+
+                if count[0] > 0:
+                    print(f"Для пользователя {usid} город {city} уже существует в базе данных.")
+                    return {
+                        "add": f"For the user {usid}, the {city} already exists in the database."
+                    }
+
             await db.execute('''
-                    INSERT INTO cities (city, latitude, longitude, weather, last_updated) VALUES (?, ?, ?, ?, ?)
-                    ''', (city, latitude, longitude, '-', datetime.fromtimestamp(time.time()),))
+                    INSERT INTO cities (id_user, city, latitude, longitude, weather, last_updated) 
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (usid, city, latitude, longitude, '-', datetime.fromtimestamp(time.time()),))
             await db.commit()
             await get_weather_city(city)
 
-            print(f"Город {city} добавлен в базу данных.")
+            print(f"Город {city} добавлен в базу данных для пользователя: {usid}.")
             return {
-                "city": city,
-                "add": f"{city} added to the database."
+                "add": f"{city} added to the database for user: {usid}."
             }
 
         except aiosqlite.IntegrityError:
-            print(f"Город {city} уже существует в базе данных.")
             return {
-                "city": city,
-                "add": f"The {city} already exists in the database."
+                "add": f"An error occurred when adding the {city} for the user {usid}."
             }

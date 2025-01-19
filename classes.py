@@ -4,7 +4,12 @@ import re
 from fastapi import Query
 
 
-class Coordinates(BaseModel):
+class UserName(BaseModel):
+    username: str
+
+
+class CityName(BaseModel):
+    city: str
     latitude: float = Field(..., description="Широта должна быть в диапазоне от -90 до 90.")
     longitude: float = Field(..., description="Долгота должна быть в диапазоне от -180 до 180.")
 
@@ -19,12 +24,6 @@ class Coordinates(BaseModel):
         if not -180 <= value <= 180:
             raise ValueError("Долгота должна быть в диапазоне от -180 до 180.")
         return value
-
-
-class CityName(BaseModel):
-    city: str
-    latitude: float
-    longitude: float
 
 
 class WeatherResponse(BaseModel):
