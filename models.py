@@ -2,6 +2,9 @@ from pydantic import BaseModel, field_validator, Field
 from typing import Optional
 import re
 from fastapi import Query
+from sqlalchemy import String, Integer, Float, JSON, DateTime, ForeignKey
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from datetime import datetime, timezone
 
 
 class UserName(BaseModel):
@@ -44,3 +47,26 @@ class WeatherResponse(BaseModel):
         if hours < 0 or hours > 23 or minutes < 0 or minutes > 59:
             raise ValueError("Часы должны быть между 0 и 23, минуты между 0 и 59.")
         return v
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class CityBase(Base):
+    __tablename__ = "Cities"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    id_user: Mapped[int] = mapped_column(Integer, ForeignKey('Users.id', ondelete='CASCADE'))
+    city: Mapped[str] = mapped_column(String)
+    latitude: Mapped[float] = mapped_column(Float)
+    longitude: Mapped[float] = mapped_column(Float)
+    weather: Mapped[dict] = mapped_column(JSON)
+    last_updated: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class UserBase(Base):
+    __tablename__ = "Users"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    username: Mapped[str] = mapped_column(String)
