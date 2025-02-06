@@ -37,15 +37,16 @@ async def get_weather_by_hour(usid: int, city: str, time_w: str,
 
             try:
                 if temperature:
-                    response["temperature"] = weather_json["temperature_2m"][int(hour)-1]
+                    response["temperature"] = weather_json["temperature_2m"][int(hour)]
                 if humidity:
-                    response["humidity"] = weather_json["relative_humidity_2m"][int(hour)-1]
+                    response["humidity"] = weather_json["relative_humidity_2m"][int(hour)]
                 if wind_speed:
-                    response["wind_speed"] = weather_json["wind_speed_10m"][int(hour)-1]
+                    response["wind_speed"] = weather_json["wind_speed_10m"][int(hour)]
                 if precipitation:
-                    response["precipitation"] = weather_json["precipitation"][int(hour)-1]
+                    response["precipitation"] = weather_json["precipitation"][int(hour)]
                 if not response:
                     response["None"] = "Select the weather settings."
+
             except (KeyError, IndexError) as e:
                 print(f"Ошибка получения погоды: {e}.")
                 response["Error"] = "Unable to retrieve the requested data."
