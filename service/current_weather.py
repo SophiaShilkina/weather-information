@@ -2,6 +2,7 @@ from typing import Optional
 from fastapi import Query
 import aiosqlite
 import json
+import logging
 
 
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
@@ -16,7 +17,7 @@ async def get_weather_by_hour(usid: int, city: str, time_w: str,
                               humidity: Optional[bool] = Query(None),
                               wind_speed: Optional[bool] = Query(None),
                               precipitation: Optional[bool] = Query(None)):
-    async with aiosqlite.connect("cities.db") as db:
+    async with aiosqlite.connect("../cities.db") as db:
         async with db.execute("SELECT weather FROM cities WHERE id_user = ? AND city = ?", (usid, city,)) as cursor:
             weather_data = await cursor.fetchone()
 
@@ -48,7 +49,7 @@ async def get_weather_by_hour(usid: int, city: str, time_w: str,
                     response["None"] = "Select the weather settings."
 
             except (KeyError, IndexError) as e:
-                print(f"Ошибка получения погоды: {e}.")
+                logging.error(f"Error getting the weather: {e}.")
                 response["Error"] = "Unable to retrieve the requested data."
 
             return response

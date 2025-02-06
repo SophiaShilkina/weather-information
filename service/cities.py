@@ -1,10 +1,10 @@
+import logging
 from fastapi import HTTPException
 import httpx
 from datetime import datetime
 import aiosqlite
 import time
 import json
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
@@ -14,25 +14,22 @@ BASE_URL = "https://api.open-meteo.com/v1/forecast"
 #       обновлять его каждые 15 минут.
 
 
-scheduler = AsyncIOScheduler()
-
-
 async def fetch_column_data():
-    async with aiosqlite.connect('cities.db') as db:
+    async with aiosqlite.connect('../cities.db') as db:
         async with db.execute("SELECT city FROM cities") as cursor:
             rows = await cursor.fetchall()
 
             if not rows:
-                print("Города не найдены.")
+                logging.info("No cities found.")
                 return
 
             for row in rows:
-                print(f"Информация обновлена для города {row[0]}.")
+                logging.info(f"Information has been updated for the city {row[0]}.")
                 yield row[0]
 
 
-async def get_weather_city(city: str):
-    async with aiosqlite.connect('cities.db') as db:
+async def get_weather_city(city: str) -> None:
+    async with aiosqlite.connect('../cities.db') as db:
         async with db.execute("SELECT * FROM cities WHERE city = ?", (city,)) as cursor:
             row = await cursor.fetchone()
             latitude = row[3]
@@ -54,7 +51,6 @@ async def get_weather_city(city: str):
 
     async with httpx.AsyncClient() as client:
         response = await client.get(BASE_URL, params=params)
-        print(response)
 
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail="Данные о погоде недоступны.")
@@ -67,40 +63,35 @@ async def get_weather_city(city: str):
 
         daily_data = json.dumps(daily_data)
 
-        async with aiosqlite.connect('cities.db') as db:
+        async with aiosqlite.connect('../cities.db') as db:
             await db.execute("UPDATE cities SET weather = ? WHERE city = ?", (daily_data, city))
             await db.execute("UPDATE cities SET last_updated = ? WHERE city = ?",
                              (datetime.fromtimestamp(time.time()), city))
             await db.commit()
 
 
-async def generator():
+async def generator() -> None:
     async for city in fetch_column_data():
         await get_weather_city(city)
 
 
-async def add_city(usid: int, city: str, latitude: float, longitude: float):
-    async with aiosqlite.connect('users.db') as db:
+async def add_city(usid: int, city: str, latitude: float, longitude: float) -> None:
+    async with aiosqlite.connect('../users.db') as db:
         async with db.execute("SELECT id FROM users WHERE id = ?", (usid,)) as cursor:
             have_id = await cursor.fetchone()
 
             if have_id is None:
-                print(f"Незарегистрированный пользователь.")
-                return {
-                    "add": "Unregistered user."
-                }
+                logging.info("Unregistered user.")
 
-    async with aiosqlite.connect('cities.db') as db:
+    async with aiosqlite.connect('../cities.db') as db:
         try:
             async with db.execute("SELECT COUNT(*) FROM cities WHERE id_user = ? AND city = ?",
                                   (usid, city)) as cursor:
                 count = await cursor.fetchone()
 
                 if count[0] > 0:
-                    print(f"Для пользователя {usid} город {city} уже существует в базе данных.")
-                    return {
-                        "add": f"For the user {usid}, the {city} already exists in the database."
-                    }
+                    logging.info(f"For the user {usid}, the {city} already exists in the database.")
+                    return
 
             await db.execute('''
                     INSERT INTO cities (id_user, city, latitude, longitude, weather, last_updated) 
@@ -109,12 +100,7 @@ async def add_city(usid: int, city: str, latitude: float, longitude: float):
             await db.commit()
             await get_weather_city(city)
 
-            print(f"Город {city} добавлен в базу данных для пользователя: {usid}.")
-            return {
-                "add": f"{city} added to the database for user: {usid}."
-            }
+            logging.info(f"{city} added to the database for user: {usid}.")
 
-        except aiosqlite.IntegrityError:
-            return {
-                "add": f"An error occurred when adding the {city} for the user {usid}."
-            }
+        except aiosqlite.IntegrityError as e:
+            logging.error(f"IntegrityError occurred: {e}")

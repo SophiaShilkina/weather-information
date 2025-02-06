@@ -20,7 +20,6 @@ async def get_weather_now(latitude: float, longitude: float):
 
     async with httpx.AsyncClient() as client:
         response = await client.get(BASE_URL, params=params)
-        print(response)
 
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail="Данные о погоде недоступны.")
