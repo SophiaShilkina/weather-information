@@ -1,10 +1,10 @@
 from fastapi import HTTPException, Query
-from coordinates import get_weather_now
-from cities import add_city
-from forecast import cities_with_forecast
+from service.coordinates import get_weather_now
+from service.cities import add_city
+from service.forecast import cities_with_forecast
 from entities import CityName, UserName
-from currentweather import get_weather_by_hour
-from users import add_user
+from service.current_weather import get_weather_by_hour
+from service.registration import add_user
 from typing import Optional
 from scheduler import lifespan
 from fastapi import FastAPI
@@ -53,7 +53,7 @@ async def add_cities(usid: int, cit: CityName) -> None:
 
 
 @app.get('/forecast/{usid}')
-async def available_cities_for_user(usid: int):
+async def available_cities_for_user(usid: int) -> list:
     try:
         return await cities_with_forecast(usid)
 
