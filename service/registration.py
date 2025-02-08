@@ -1,6 +1,8 @@
 import logging
-
-import aiosqlite
+import sqlalchemy
+from sqlalchemy import select
+from base import async_session
+from models import UsersBase
 
 # 5.    Метод предназначен для регистрации пользователей. Принимает имя пользователя и возвращает уникальный
 #       идентификатор (ID) нового пользователя. Каждый пользователь может иметь свой личный список городов и
@@ -8,25 +10,27 @@ import aiosqlite
 
 
 async def add_user(username: str) -> dict:
-    async with aiosqlite.connect('../users.db') as db:
-        try:
-            await db.execute('''
-                    INSERT INTO Users (username) VALUES (?)
-                    ''', (username,))
-            await db.commit()
-            logging.info(f"Пользователь {username} добавлен в базу данных.")
+    try:
+        async with async_session() as session:
+            async with session.begin():
+                session.add_all(
+                    [
+                        UsersBase(username=username, bs=[]),
+                    ]
+                )
 
-            async with db.execute('SELECT id FROM Users WHERE username = ?', (username,)) as cursor:
-                usid = await cursor.fetchone()
-                return {
-                    "id": usid[0]
-                }
+        logging.info(f"The user {username} has been added to the database.")
 
-        except aiosqlite.IntegrityError:
-            logging.info(f"Пользователь {username} уже существует в базе данных.")
+    except sqlalchemy.exc.IntegrityError:
+        logging.error(f"The {username} already exists in the database.")
 
-            async with db.execute('SELECT id FROM Users WHERE username = ?', (username,)) as cursor:
-                usid = await cursor.fetchone()
-                return {
-                    "id": f"The {username} already exists in the database on id: {usid}."
-                }
+    finally:
+        async with async_session() as session:
+            stmt = select(UsersBase.id).where(UsersBase.username == username)
+            result = await session.execute(stmt)
+
+            usid = result.scalar_one_or_none()
+
+            return {
+                "id": usid
+            } if usid is not None else None
