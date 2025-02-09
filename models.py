@@ -18,7 +18,7 @@ class CitiesBase(Base):
     latitude: Mapped[float] = mapped_column(Float)
     longitude: Mapped[float] = mapped_column(Float)
     weather: Mapped[dict] = mapped_column(JSON, nullable=True)
-    last_updated: Mapped[datetime] = mapped_column(server_default=func.now())
+    last_updated: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
 
 class UsersBase(Base):
