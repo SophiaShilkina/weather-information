@@ -1,12 +1,11 @@
 import logging
 from fastapi import HTTPException
 import httpx
-import aiosqlite
-import json
 from base import async_session
 from models import CitiesBase, UsersBase
-from sqlalchemy import select, func, and_, update
+from sqlalchemy import select, func, and_, update, distinct
 import sqlalchemy
+from typing import AsyncGenerator
 
 
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
@@ -16,32 +15,15 @@ BASE_URL = "https://api.open-meteo.com/v1/forecast"
 #       обновлять его каждые 15 минут.
 
 
-async def fetch_column_data():
-    async with aiosqlite.connect('../cities.db') as db:
-        async with db.execute("SELECT city FROM cities") as cursor:
-            rows = await cursor.fetchall()
-
-            if not rows:
-                logging.info("No cities found.")
-                return
-
-            for row in rows:
-                logging.info(f"Information has been updated for the city {row[0]}.")
-                yield row[0]
-
-
-async def get_weather_city(city: str) -> None:
-    async with async_session() as session:
+async def get_weather_city(city: str, usid: int = None) -> None:
+    async with (async_session() as session):
         try:
-            result = await session.execute(select(CitiesBase).where(CitiesBase.city == city))
-            cities = result.scalars().all()
+            stmt = select(CitiesBase.latitude, CitiesBase.longitude).where(CitiesBase.city == city)
+            result = await session.execute(stmt)
 
-            coordinates = []
+            cities = result.fetchall()[0]
 
-            for cit in cities:
-                coordinates.append((cit.latitude, cit.longitude))
-
-            latitude, longitude = coordinates[0]
+            latitude, longitude = cities[0], cities[1]
 
             hourly_params = [
                 "temperature_2m",
@@ -61,7 +43,7 @@ async def get_weather_city(city: str) -> None:
                 response = await client.get(BASE_URL, params=params)
 
                 if response.status_code != 200:
-                    raise HTTPException(status_code=response.status_code, detail="Данные о погоде недоступны.")
+                    raise HTTPException(status_code=response.status_code, detail="Weather data is not available.")
 
                 data = response.json()
 
@@ -69,11 +51,37 @@ async def get_weather_city(city: str) -> None:
                 for param in hourly_params:
                     daily_data[param] = data['hourly'][param][:24] if 'hourly' in data and param in data['hourly'] else []
 
-                daily_data = json.dumps(daily_data)
+                if usid is not None:
+                    stmt = (update(CitiesBase)
+                            .where(CitiesBase.city == city, CitiesBase.user_id == usid)
+                            .values(weather=daily_data))
+                    await session.execute(stmt)
+                    await session.commit()
 
-                async with session.begin():
+                else:
                     stmt = update(CitiesBase).where(CitiesBase.city == city).values(weather=daily_data)
                     await session.execute(stmt)
+                    await session.commit()
+
+        except Exception as e:
+            logging.error(f"Error occurred: {e}")
+
+
+async def fetch_column_data() -> AsyncGenerator[str, None]:
+    async with async_session() as session:
+        try:
+            stmt = select(distinct(CitiesBase.city))
+            result = await session.execute(stmt)
+
+            cities_with_the_same_name = result.scalars().all()
+
+            if not cities_with_the_same_name:
+                logging.info("No cities found.")
+                return
+
+            for city in cities_with_the_same_name:
+                logging.info(f"Information has been updated for the city {city}.")
+                yield city
 
         except Exception as e:
             logging.error(f"Error occurred: {e}")
@@ -84,7 +92,7 @@ async def generator() -> None:
         await get_weather_city(city)
 
 
-async def add_city(usid: int, city: str, latitude: float, longitude: float) -> None:
+async def add_new_city(usid: int, city: str, latitude: float, longitude: float) -> None:
     async with async_session() as session:
         try:
             result = await session.execute(
@@ -98,13 +106,14 @@ async def add_city(usid: int, city: str, latitude: float, longitude: float) -> N
 
             if user_data is None:
                 logging.info("Unregistered user.")
-                return
+                raise HTTPException(status_code=404, detail="Unregistered user.")
 
             user_id, city_count = user_data
 
             if city_count > 0:
                 logging.info(f"For the user {user_id}, the city '{city}' already exists in the database.")
-                return
+                raise HTTPException(status_code=409,
+                                    detail=f"For the user {user_id}, the city '{city}' already exists in the database.")
 
             session.add_all(
                 [
@@ -113,9 +122,9 @@ async def add_city(usid: int, city: str, latitude: float, longitude: float) -> N
             )
             await session.commit()
 
-            await get_weather_city(city)
-
+            await get_weather_city(city, usid)
             logging.info(f"{city} added to the database for user: {usid}.")
 
         except sqlalchemy.exc.IntegrityError as e:
             logging.error(f"IntegrityError occurred: {e}")
+            raise HTTPException(status_code=409, detail="This entry already exists.")
