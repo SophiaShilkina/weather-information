@@ -2,6 +2,7 @@ from fastapi import HTTPException
 import httpx
 from datetime import datetime
 
+
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
 
 # 1.    Метод принимает координаты и возвращает данные о температуре, скорости ветра и атмосферном
@@ -22,7 +23,7 @@ async def get_weather_now(latitude: float, longitude: float):
         response = await client.get(BASE_URL, params=params)
 
         if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail="Данные о погоде недоступны.")
+            raise HTTPException(status_code=response.status_code, detail="Weather data is not available.")
 
         data = response.json()
 
