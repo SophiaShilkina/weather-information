@@ -1,14 +1,14 @@
 from typing import Optional
 from fastapi import Query
-import aiosqlite
-import json
 import logging
+from base import async_session
+from sqlalchemy import select
+from models import CitiesBase
+from fastapi import HTTPException
 
-
-BASE_URL = "https://api.open-meteo.com/v1/forecast"
 
 # 4.	Метод принимает название города и время и возвращает для него погоду на текущий день в указанное время,
-#       должна быть возможность выбирать какие параметры погоды получаем в ответе – температура, влажность,
+#       возможность выбирать какие параметры погоды получаем в ответе – температура, влажность,
 #       скорость ветра, осадки.
 
 
@@ -16,40 +16,30 @@ async def get_weather_by_hour(usid: int, city: str, time_w: str,
                               temperature: Optional[bool] = Query(None),
                               humidity: Optional[bool] = Query(None),
                               wind_speed: Optional[bool] = Query(None),
-                              precipitation: Optional[bool] = Query(None)):
-    async with aiosqlite.connect("../cities.db") as db:
-        async with db.execute("SELECT weather FROM cities WHERE id_user = ? AND city = ?", (usid, city,)) as cursor:
-            weather_data = await cursor.fetchone()
+                              precipitation: Optional[bool] = Query(None)) -> dict:
+    async with async_session() as session:
+        stmt = select(CitiesBase.weather).where(CitiesBase.user_id == usid, CitiesBase.city == city)
+        result = await session.execute(stmt)
 
-            if weather_data is None:
-                return {
-                    "Error": "City not found."
-                }
+        weather_data = result.scalar_one_or_none()
 
-            if weather_data:
-                weather_json_string = weather_data[0]
-                weather_json = json.loads(weather_json_string)
-            else:
-                weather_json = {}
+        if not weather_data:
+            logging.error("City not found.")
+            raise HTTPException(status_code=404, detail="City not found.")
 
-            hour = time_w.split(':')[0]
+        hour = time_w.split(':')[0]
 
-            response = {}
+        response = {}
 
-            try:
-                if temperature:
-                    response["temperature"] = weather_json["temperature_2m"][int(hour)]
-                if humidity:
-                    response["humidity"] = weather_json["relative_humidity_2m"][int(hour)]
-                if wind_speed:
-                    response["wind_speed"] = weather_json["wind_speed_10m"][int(hour)]
-                if precipitation:
-                    response["precipitation"] = weather_json["precipitation"][int(hour)]
-                if not response:
-                    response["None"] = "Select the weather settings."
+        if temperature:
+            response["temperature"] = weather_data["temperature_2m"][int(hour)]
+        if humidity:
+            response["humidity"] = weather_data["relative_humidity_2m"][int(hour)]
+        if wind_speed:
+            response["wind_speed"] = weather_data["wind_speed_10m"][int(hour)]
+        if precipitation:
+            response["precipitation"] = weather_data["precipitation"][int(hour)]
+        if not response:
+            response["None"] = "Select the weather settings."
 
-            except (KeyError, IndexError) as e:
-                logging.error(f"Error getting the weather: {e}.")
-                response["Error"] = "Unable to retrieve the requested data."
-
-            return response
+        return response
