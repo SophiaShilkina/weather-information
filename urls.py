@@ -1,6 +1,6 @@
 from fastapi import HTTPException, Query
 from service.coordinates import get_weather_now
-from service.cities import add_city
+from service.cities import add_new_city
 from service.forecast import cities_with_forecast
 from entities import CityName, UserName
 from service.current_weather import get_weather_by_hour
@@ -46,7 +46,7 @@ async def add_cities(usid: int, cit: CityName) -> None:
         city = cit.city
         latitude = cit.latitude
         longitude = cit.longitude
-        return await add_city(usid, city, latitude, longitude)
+        return await add_new_city(usid, city, latitude, longitude)
 
     except HTTPException as e:
         raise e
