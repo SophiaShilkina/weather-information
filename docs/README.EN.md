@@ -140,7 +140,9 @@ Unneeded parameters do not require false values.
 
 ## Installation and Running
 
-1. Navigate to the desired directory and clone the repository:
+1. **Download the Source code(zip/tar.gz) from the latest release** or 
+navigate to the desired directory and clone the repository:
+
    ```bash
    git clone https://github.com/SophiaShilkina/weather-information.git
    ```
@@ -155,6 +157,20 @@ Unneeded parameters do not require false values.
    python app.py
    ```
    The server will be available at: http://127.0.0.1:8000
+
+## Roadmap
+
+- **Test Coverage for the Application**: Implementation of tests to ensure code 
+stability and reliability.
+
+- **Migration to PostgreSQL**: Replacement of aiosqlite with PostgreSQL to improve 
+the performance and scalability of the application.
+
+- **Adding Migration Support**: Implementation of a migration system using Alembic 
+to manage changes in the database structure.
+
+- **Adding Response Caching**: Introduction of a caching mechanism to reduce response 
+time and decrease the load on the API.
 
 ### Contribution
 
